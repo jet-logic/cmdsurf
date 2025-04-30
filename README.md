@@ -4,6 +4,9 @@
 
 `cmdsurf` is a fun and lightweight terminal UI that lets you scroll through, run, or delete your Bash history interactively.
 
+[![cmdsurf](icon.png)](https://github.com/jet-logic/cmdsurf)
+[![PyPI version fury.io](https://badge.fury.io/py/cmdsurf.svg)](https://pypi.python.org/pypi/cmdsurf/)
+
 ## 🌀 Features
 
 - Scroll your command history with ↑/↓
