@@ -1,8 +1,9 @@
-name: Build and Publish to PyPI
+name: Publish
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "v*.*.*"
 
 jobs:
   build-and-publish:
