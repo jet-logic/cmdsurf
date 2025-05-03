@@ -7,6 +7,12 @@
 [![cmdsurf](icon.png)](https://github.com/jet-logic/cmdsurf)
 [![PyPI version fury.io](https://badge.fury.io/py/cmdsurf.svg)](https://pypi.python.org/pypi/cmdsurf/)
 
+## ☕ Support
+
+If you find this project helpful, consider supporting me:
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/B0B01E8SY7)
+
 ## 🌀 Features
 
 - Scroll your command history with ↑/↓
