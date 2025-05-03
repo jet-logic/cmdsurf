@@ -1,6 +1,6 @@
 [project]
 name = "cmdsurf"
-version = "0.1.4"
+version = "0.1.5"
 description = "Ride the wave of your past commands"
 authors = [{ name = "Jet-Logic" }]
 readme = "README.md"

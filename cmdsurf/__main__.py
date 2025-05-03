@@ -54,6 +54,8 @@ async def main():
     undo_stack = []
     _, term_rows = get_terminal_size()
     visible_lines = term_rows - 5
+    search_string = ""
+    search_mode = False
 
     if not history:
         print("No history found in:", history_file)
@@ -63,29 +65,37 @@ async def main():
     current_selection = len(history) - 1
     viewport_top = max(0, len(history) - visible_lines)
 
+    def get_filtered_history():
+        if not search_string:
+            return history
+        return [cmd for cmd in history if search_string.lower() in cmd.lower()]
+
     def display_history():
+        filtered_history = get_filtered_history()
         print("\033c", end="")
-        print(
-            "Bash History (↑/↓: navigate, Enter: execute, Del: delete, Ctrl+Z: undo, q: quit)"
-        )
+        header = "Bash History (↑/↓: navigate, Enter: execute, Del: delete, Ctrl+Z: undo, /: search, q: quit)"
+        if search_mode:
+            header += f" [SEARCH: '{search_string}']"
+        print(header)
         print(f"Editing: {history_file}")
         print()
 
-        viewport_bottom = min(len(history), viewport_top + visible_lines)
+        viewport_bottom = min(len(filtered_history), viewport_top + visible_lines)
 
         for i in range(viewport_top, viewport_bottom):
             prefix = "> " if i == current_selection else "  "
             line_num = f"{i+1}:".ljust(5)
-            print(f"{prefix}{line_num}{history[i]}")
+            print(f"{prefix}{line_num}{filtered_history[i]}")
 
         print("\n" + "-" * 50)
         if viewport_top > 0:
             print("↑↑↑ More items above ↑↑↑")
-        if viewport_bottom < len(history):
+        if viewport_bottom < len(filtered_history):
             print("↓↓↓ More items below ↓↓↓")
 
     def ensure_selection_visible():
         nonlocal viewport_top
+        filtered_history = get_filtered_history()
         if current_selection < viewport_top:
             viewport_top = current_selection
         elif current_selection >= viewport_top + visible_lines:
@@ -102,7 +112,8 @@ async def main():
     @bindings.add("down")
     def _(event):
         nonlocal current_selection
-        if current_selection < len(history) - 1:
+        filtered_history = get_filtered_history()
+        if current_selection < len(filtered_history) - 1:
             current_selection += 1
             ensure_selection_visible()
             display_history()
@@ -110,6 +121,7 @@ async def main():
     @bindings.add("pageup")
     def _(event):
         nonlocal current_selection, viewport_top
+        filtered_history = get_filtered_history()
         current_selection = max(0, current_selection - visible_lines)
         viewport_top = max(0, viewport_top - visible_lines)
         display_history()
@@ -117,8 +129,13 @@ async def main():
     @bindings.add("pagedown")
     def _(event):
         nonlocal current_selection, viewport_top
-        current_selection = min(len(history) - 1, current_selection + visible_lines)
-        viewport_top = min(len(history) - visible_lines, viewport_top + visible_lines)
+        filtered_history = get_filtered_history()
+        current_selection = min(
+            len(filtered_history) - 1, current_selection + visible_lines
+        )
+        viewport_top = min(
+            len(filtered_history) - visible_lines, viewport_top + visible_lines
+        )
         display_history()
 
     @bindings.add("delete")
@@ -146,14 +163,61 @@ async def main():
 
     @bindings.add("enter")
     def _(event):
-        if history:
-            selected_command = history[current_selection]
+        nonlocal search_mode
+        if search_mode:
+            search_mode = False
+            display_history()
+        elif history:
+            filtered_history = get_filtered_history()
+            selected_command = filtered_history[current_selection]
             print(f"\nExecuting: {selected_command}\n")
             try:
                 subprocess.run(selected_command, shell=True, check=True)
             except subprocess.CalledProcessError as e:
                 print(f"Command failed with exit code {e.returncode}")
-        event.app.exit()
+            event.app.exit()
+
+    @bindings.add("/")
+    @bindings.add("c-s")
+    def _(event):
+        nonlocal search_mode, search_string
+        search_mode = True
+        search_string = ""
+        display_history()
+
+    @bindings.add("c-g")
+    def _(event):
+        nonlocal search_mode, search_string
+        search_mode = False
+        search_string = ""
+        display_history()
+
+    @bindings.add("c-n")
+    def _(event):
+        nonlocal current_selection
+        filtered_history = get_filtered_history()
+        if filtered_history:
+            current_selection = min(current_selection + 1, len(filtered_history) - 1)
+            ensure_selection_visible()
+            display_history()
+
+    @bindings.add("c-p")
+    def _(event):
+        nonlocal current_selection
+        filtered_history = get_filtered_history()
+        if filtered_history:
+            current_selection = max(current_selection - 1, 0)
+            ensure_selection_visible()
+            display_history()
+
+    @bindings.add("<any>")
+    def _(event):
+        nonlocal search_string, current_selection, viewport_top
+        if search_mode and event.data not in ["\r", "\n"]:  # Ignore Enter key
+            search_string += event.data
+            current_selection = 0
+            viewport_top = 0
+            display_history()
 
     @bindings.add("c-c")
     @bindings.add("q")
