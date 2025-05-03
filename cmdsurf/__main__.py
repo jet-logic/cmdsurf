@@ -71,35 +71,71 @@ async def main():
         return [cmd for cmd in history if search_string.lower() in cmd.lower()]
 
     def display_history():
+        nonlocal viewport_top
         filtered_history = get_filtered_history()
+        # Clear screen (commented out as per your preference)
         print("\033c", end="")
-        header = "Bash History (↑/↓: navigate, Enter: execute, Del: delete, Ctrl+Z: undo, /: search, q: quit)"
+
+        # Header with search mode indicator
+        header = "Bash History - "
         if search_mode:
-            header += f" [SEARCH: '{search_string}']"
+            header += "\033[7mSEARCH MODE\033[0m (type to search, Enter to confirm, Ctrl+G to cancel)"
+        else:
+            header += "(↑/↓: navigate, Enter: execute, Del: delete, /: search, q: quit)"
+
         print(header)
         print(f"Editing: {history_file}")
-        print()
 
-        viewport_bottom = min(len(filtered_history), viewport_top + visible_lines)
+        # Display search query when in search mode
+        if search_mode:
+            print(f"\nSearch: {search_string}\n")
+        else:
+            print()
 
+        # Calculate viewport bounds - THIS IS THE FIXED VERSION
+        if len(filtered_history) <= visible_lines:
+            viewport_top = 0
+            viewport_bottom = len(filtered_history)
+        else:
+            if current_selection < viewport_top:
+                viewport_top = current_selection
+            elif current_selection >= viewport_top + visible_lines:
+                viewport_top = current_selection - visible_lines + 1
+            viewport_top = max(
+                0, min(viewport_top, len(filtered_history) - visible_lines)
+            )
+            viewport_bottom = viewport_top + visible_lines
+
+        # Display items
         for i in range(viewport_top, viewport_bottom):
             prefix = "> " if i == current_selection else "  "
             line_num = f"{i+1}:".ljust(5)
             print(f"{prefix}{line_num}{filtered_history[i]}")
 
-        print("\n" + "-" * 50)
-        if viewport_top > 0:
-            print("↑↑↑ More items above ↑↑↑")
-        if viewport_bottom < len(filtered_history):
-            print("↓↓↓ More items below ↓↓↓")
+        print(
+            f'\n-{viewport_top > 0 and "↑↑↑" or "---"}'
+            + f'-{viewport_bottom < len(filtered_history) and "↓↓↓" or "---"}'
+            + "-" * 40
+        )
 
     def ensure_selection_visible():
         nonlocal viewport_top
         filtered_history = get_filtered_history()
+
+        # If we have fewer items than visible lines, always start at top
+        if len(filtered_history) <= visible_lines:
+            viewport_top = 0
+            return
+
+        # If selection is above viewport, scroll up
         if current_selection < viewport_top:
             viewport_top = current_selection
+        # If selection is at or below viewport bottom, scroll down
         elif current_selection >= viewport_top + visible_lines:
             viewport_top = current_selection - visible_lines + 1
+        # Ensure we don't show empty space at bottom
+        if viewport_top > len(filtered_history) - visible_lines:
+            viewport_top = max(0, len(filtered_history) - visible_lines)
 
     @bindings.add("up")
     def _(event):
@@ -123,7 +159,7 @@ async def main():
         nonlocal current_selection, viewport_top
         filtered_history = get_filtered_history()
         current_selection = max(0, current_selection - visible_lines)
-        viewport_top = max(0, viewport_top - visible_lines)
+        ensure_selection_visible()  # Add this line
         display_history()
 
     @bindings.add("pagedown")
@@ -133,9 +169,7 @@ async def main():
         current_selection = min(
             len(filtered_history) - 1, current_selection + visible_lines
         )
-        viewport_top = min(
-            len(filtered_history) - visible_lines, viewport_top + visible_lines
-        )
+        ensure_selection_visible()  # Add this line
         display_history()
 
     @bindings.add("delete")
@@ -180,9 +214,11 @@ async def main():
     @bindings.add("/")
     @bindings.add("c-s")
     def _(event):
-        nonlocal search_mode, search_string
+        nonlocal search_mode, search_string, current_selection, viewport_top
         search_mode = True
         search_string = ""
+        current_selection = 0
+        viewport_top = 0
         display_history()
 
     @bindings.add("c-g")
@@ -215,6 +251,15 @@ async def main():
         nonlocal search_string, current_selection, viewport_top
         if search_mode and event.data not in ["\r", "\n"]:  # Ignore Enter key
             search_string += event.data
+            current_selection = 0
+            viewport_top = 0
+            display_history()
+
+    @bindings.add("backspace")
+    def _(event):
+        nonlocal search_string, current_selection, viewport_top
+        if search_mode and search_string:
+            search_string = search_string[:-1]
             current_selection = 0
             viewport_top = 0
             display_history()
